@@ -49,9 +49,15 @@ def render(filters: dict, marketing_df: pd.DataFrame, business_df: pd.DataFrame,
 
     total_spend = float(m_daily["spend"].sum()) if not m_daily.empty else 0.0
     total_revenue = float(blended["total_revenue"].sum()) if not blended.empty else 0.0
+    total_attr_rev = float(m_filtered["attributed_revenue"].sum()) if not m_filtered.empty else 0.0
     total_new_customers = int(business_df["new_customers"].sum()) if not business_df.empty else 0
     mer = (total_revenue / total_spend) if total_spend else 0.0
     blended_cac = (total_spend / total_new_customers) if total_new_customers else 0.0
+    attributed_roas = (total_attr_rev / total_spend) if total_spend else 0.0
+
+    targets = (filters or {}).get("targets", {})
+    tg_mer = targets.get("mer")
+    tg_cac = targets.get("cac")
 
     c1, c2, c3, c4 = st.columns(4)
     with c1:
@@ -59,9 +65,24 @@ def render(filters: dict, marketing_df: pd.DataFrame, business_df: pd.DataFrame,
     with c2:
         st.metric("Total revenue", _fmt_currency(total_revenue))
     with c3:
-        st.metric("MER", _fmt_float(mer))
+        if tg_mer:
+            delta = mer - tg_mer
+            st.metric("MER", _fmt_float(mer), delta=f"{delta:+.2f}")
+        else:
+            st.metric("MER", _fmt_float(mer))
     with c4:
-        st.metric("Blended CAC", _fmt_currency(blended_cac))
+        if tg_cac:
+            delta = tg_cac - blended_cac  # lower CAC is better, so invert
+            st.metric("Blended CAC", _fmt_currency(blended_cac), delta=f"{delta:+.0f}")
+        else:
+            st.metric("Blended CAC", _fmt_currency(blended_cac))
+
+    # Second row: attributed ROAS vs target (if provided)
+    tg_roas = targets.get("roas")
+    if tg_roas:
+        c = st.columns(1)[0]
+        with c:
+            st.metric("Attributed ROAS", _fmt_float(attributed_roas), delta=f"{(attributed_roas - tg_roas):+.2f}")
 
     st.markdown("### Channel breakdown")
     if m_filtered.empty:
@@ -76,8 +97,15 @@ def render(filters: dict, marketing_df: pd.DataFrame, business_df: pd.DataFrame,
     channel_grp["roas"] = channel_grp.apply(
         lambda r: (r["attributed_revenue"] / r["spend"]) if r["spend"] else 0.0, axis=1
     )
+    # If ROAS target provided, add variance column for quick scan
+    roas_target = targets.get("roas")
+    if roas_target:
+        channel_grp["ROAS Δ vs target"] = channel_grp["roas"].apply(lambda x: x - roas_target)
+    display_cols = ["channel", "spend", "attributed_revenue", "roas", "impressions", "clicks"]
+    if roas_target:
+        display_cols.append("ROAS Δ vs target")
     st.dataframe(
-        channel_grp[["channel", "spend", "attributed_revenue", "roas", "impressions", "clicks"]]
+        channel_grp[display_cols]
         .sort_values("spend", ascending=False)
         .rename(columns={
             "channel": "Channel",
@@ -88,6 +116,20 @@ def render(filters: dict, marketing_df: pd.DataFrame, business_df: pd.DataFrame,
             "clicks": "Clicks",
         }),
         use_container_width=True,
+    )
+
+    # Exports
+    st.download_button(
+        label="Download blended KPIs (CSV)",
+        data=blended.to_csv(index=False).encode("utf-8") if blended is not None else b"",
+        file_name="blended_summary.csv",
+        mime="text/csv",
+    )
+    st.download_button(
+        label="Download channel breakdown (CSV)",
+        data=channel_grp.to_csv(index=False).encode("utf-8") if channel_grp is not None else b"",
+        file_name="channel_breakdown.csv",
+        mime="text/csv",
     )
     with st.expander("Metric definitions"):
         st.write("""

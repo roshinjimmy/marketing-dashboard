@@ -23,7 +23,19 @@ Data files are expected at `Marketing Intelligence Dashboard/` relative to the r
 
 1) Push this repo to GitHub
 2) In Streamlit Cloud, create a new app pointing to `app/main.py`
-3) The platform will use `requirements.txt` to install dependencies
+3) Select Python 3.12 (or Default if it picks 3.12 automatically)
+4) The platform will use `requirements.txt` to install dependencies
+
+Live app: https://marketing-dashboard-lifesight.streamlit.app/
+
+## Screenshots
+
+Add a couple of representative screenshots for quick review:
+
+- Executive Summary (KPIs + channel breakdown)
+- Trends (Spend vs Revenue; MER & Blended CAC)
+- Profit (Contribution & Profit ROAS)
+- Data Quality (coverage, reconciliation, outliers)
 
 ## Project structure
 

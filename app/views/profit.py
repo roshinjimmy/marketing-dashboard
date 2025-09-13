@@ -4,6 +4,7 @@ import plotly.express as px
 from theme import CHANNEL_COLORS  # For consistency if channel splits are added later
 
 from metrics import compute_blended_kpis
+import io
 
 
 def _apply_filters(df: pd.DataFrame, filters: dict) -> pd.DataFrame:
@@ -56,6 +57,7 @@ def render(filters: dict):
     st.sidebar.markdown("### Profit options")
     rolling = st.sidebar.checkbox("7-day rolling average", value=True)
     lag_days = st.sidebar.selectbox("Lag business metrics (days)", options=[0, 1, 2, 3], index=0)
+    targets = (filters or {}).get("targets", {})
 
     df = blended.copy().sort_values("date")
     if lag_days:
@@ -79,18 +81,30 @@ def render(filters: dict):
     with c1:
         st.metric("Contribution after ads (sum)", f"${total_contrib:,.0f}")
     with c2:
-        st.metric("Avg Profit ROAS", f"{avg_profit_roas:,.2f}")
+        t = targets.get("profit_roas")
+        if t:
+            st.metric("Avg Profit ROAS", f"{avg_profit_roas:,.2f}", delta=f"{(avg_profit_roas - t):+.2f}")
+        else:
+            st.metric("Avg Profit ROAS", f"{avg_profit_roas:,.2f}")
     with c3:
         st.metric("Avg Gross Margin %", f"{avg_gm*100:,.1f}%")
 
     # Trends
     c1, c2 = st.columns(2)
     with c1:
-        fig = px.line(df, x="date", y="contribution_after_ads", title="Contribution after ads over time")
+        fig = px.line(df, x="date", y="contribution_after_ads", title="Contribution after ads over time", template=px.defaults.template)
+        fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
         st.plotly_chart(fig, use_container_width=True)
+        png = fig.to_image(format="png") if hasattr(fig, "to_image") else None
+        if png:
+            st.download_button("Download PNG", data=png, file_name="contribution_trend.png", mime="image/png")
     with c2:
-        fig = px.line(df, x="date", y="profit_roas", title="Profit ROAS over time")
+        fig = px.line(df, x="date", y="profit_roas", title="Profit ROAS over time", template=px.defaults.template)
+        fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
         st.plotly_chart(fig, use_container_width=True)
+        png = fig.to_image(format="png") if hasattr(fig, "to_image") else None
+        if png:
+            st.download_button("Download PNG", data=png, file_name="profit_roas_trend.png", mime="image/png")
 
     st.caption("Contribution after ads = Gross Profit − Total Ad Spend. Profit ROAS = Gross Profit / Total Ad Spend.")
 
@@ -105,3 +119,7 @@ def render(filters: dict):
     with right:
         st.write("Bottom days")
         st.dataframe(day_tbl.sort_values("contribution_after_ads", ascending=True).head(top_n), use_container_width=True)
+
+    # CSV export
+    csv = df.to_csv(index=False).encode("utf-8")
+    st.download_button("Download profit KPIs (CSV)", data=csv, file_name="profit_kpis.csv", mime="text/csv")

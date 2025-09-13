@@ -42,10 +42,12 @@ def render(filters: dict):
     state_grp["roas"] = state_grp.apply(lambda r: (r["attributed_revenue"] / r["spend"]) if r["spend"] else 0.0, axis=1)
     c1, c2 = st.columns(2)
     with c1:
-        fig = px.bar(state_grp.sort_values("spend", ascending=False).head(20), x="state", y="spend", title="Top states by spend")
+        fig = px.bar(state_grp.sort_values("spend", ascending=False).head(20), x="state", y="spend", title="Top states by spend", template=px.defaults.template)
+        fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
         st.plotly_chart(fig, use_container_width=True)
     with c2:
-        fig = px.bar(state_grp.sort_values("roas", ascending=False).head(20), x="state", y="roas", title="Top states by ROAS")
+        fig = px.bar(state_grp.sort_values("roas", ascending=False).head(20), x="state", y="roas", title="Top states by ROAS", template=px.defaults.template)
+        fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
         st.plotly_chart(fig, use_container_width=True)
 
     # By tactic
@@ -60,5 +62,7 @@ def render(filters: dict):
         barmode="group",
         title="Spend by tactic and channel",
         color_discrete_map=CHANNEL_COLORS,
+        template=px.defaults.template,
     )
+    fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
     st.plotly_chart(fig, use_container_width=True)

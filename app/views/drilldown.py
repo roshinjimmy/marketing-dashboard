@@ -52,14 +52,22 @@ def render(filters: dict):
     c1, c2 = st.columns(2)
     with c1:
         df_sorted = ch.sort_values("spend", ascending=False)
-        fig = px.bar(df_sorted, x="channel", y="spend", title="Spend by channel")
+        fig = px.bar(df_sorted, x="channel", y="spend", title="Spend by channel", template=px.defaults.template)
         fig.update_traces(marker_color=[CHANNEL_COLORS.get(c, "#888888") for c in df_sorted["channel"]])
+        fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
         st.plotly_chart(fig, use_container_width=True)
+        png = fig.to_image(format="png") if hasattr(fig, "to_image") else None
+        if png:
+            st.download_button("Download PNG", data=png, file_name="spend_by_channel.png", mime="image/png")
     with c2:
         df_sorted = ch.sort_values("roas", ascending=False)
-        fig = px.bar(df_sorted, x="channel", y="roas", title="Attributed ROAS by channel")
+        fig = px.bar(df_sorted, x="channel", y="roas", title="Attributed ROAS by channel", template=px.defaults.template)
         fig.update_traces(marker_color=[CHANNEL_COLORS.get(c, "#888888") for c in df_sorted["channel"]])
+        fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
         st.plotly_chart(fig, use_container_width=True)
+        png = fig.to_image(format="png") if hasattr(fig, "to_image") else None
+        if png:
+            st.download_button("Download PNG", data=png, file_name="roas_by_channel.png", mime="image/png")
 
     # Campaign table
     st.markdown("### Campaigns")

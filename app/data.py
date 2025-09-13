@@ -1,8 +1,9 @@
 from __future__ import annotations
 from pathlib import Path
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Iterable
 
 import pandas as pd
+import streamlit as st
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT / "Marketing Intelligence Dashboard"
@@ -60,11 +61,23 @@ def load_marketing_data(data_dir: Path | None = None) -> pd.DataFrame:
         "Google": ddir / "Google.csv",
         "TikTok": ddir / "TikTok.csv",
     }
-    frames = []
-    for channel, path in paths.items():
-        if not path.exists():
-            continue
-        frames.append(_read_marketing_csv(path, channel))
+    # Compute mtimes and pass as cache keys
+    paths_with_mtimes: list[tuple[str, str, float]] = []
+    for ch, p in paths.items():
+        mtime = p.stat().st_mtime if p.exists() else 0.0
+        paths_with_mtimes.append((ch, str(p), mtime))
+
+    df = _cached_read_marketing(tuple(paths_with_mtimes))
+    return df
+
+
+@st.cache_data(show_spinner=False)
+def _cached_read_marketing(paths_with_mtimes: tuple[tuple[str, str, float], ...]) -> pd.DataFrame:
+    frames: list[pd.DataFrame] = []
+    for channel, path_str, _mtime in paths_with_mtimes:
+        p = Path(path_str)
+        if p.exists():
+            frames.append(_read_marketing_csv(p, channel))
     if not frames:
         return pd.DataFrame(
             columns=[
@@ -91,6 +104,25 @@ def load_business_data(data_dir: Path | None = None) -> pd.DataFrame:
     """
     ddir = data_dir or DATA_DIR
     path = ddir / "business.csv"
+    if not path.exists():
+        return pd.DataFrame(
+            columns=[
+                "date",
+                "orders",
+                "new_orders",
+                "new_customers",
+                "total_revenue",
+                "gross_profit",
+                "cogs",
+            ]
+        )
+    df = _cached_read_business(str(path), path.stat().st_mtime)
+    return df
+
+
+@st.cache_data(show_spinner=False)
+def _cached_read_business(path_str: str, mtime: float) -> pd.DataFrame:
+    path = Path(path_str)
     if not path.exists():
         return pd.DataFrame(
             columns=[

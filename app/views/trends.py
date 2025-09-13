@@ -4,6 +4,7 @@ import plotly.express as px
 from theme import CHANNEL_COLORS
 
 from metrics import compute_blended_kpis
+import io
 
 
 def _apply_filters(df: pd.DataFrame, filters: dict) -> pd.DataFrame:
@@ -84,6 +85,7 @@ def render(filters: dict):
     rolling = st.sidebar.checkbox("7-day rolling average", value=True)
     lag_days = st.sidebar.selectbox("Lag business metrics (days)", options=[0, 1, 2, 3], index=0)
     show_channel_lines = st.sidebar.checkbox("Show per-channel time series", value=True)
+    targets = (filters or {}).get("targets", {})
 
     # Optionally lag business metrics (revenue)
     df = blended.copy()
@@ -99,11 +101,19 @@ def render(filters: dict):
 
     c1, c2 = st.columns(2)
     with c1:
-        fig = px.line(df, x="date", y=["spend", "total_revenue"], title="Spend vs Total Revenue")
+        fig = px.line(df, x="date", y=["spend", "total_revenue"], title="Spend vs Total Revenue", template=px.defaults.template)
+        fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
         st.plotly_chart(fig, use_container_width=True)
+        png = fig.to_image(format="png") if hasattr(fig, "to_image") else None
+        if png:
+            st.download_button("Download PNG", data=png, file_name="spend_vs_revenue.png", mime="image/png")
     with c2:
-        fig = px.line(df, x="date", y=["mer", "blended_cac"], title="MER and Blended CAC")
+        fig = px.line(df, x="date", y=["mer", "blended_cac"], title="MER and Blended CAC", template=px.defaults.template)
+        fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
         st.plotly_chart(fig, use_container_width=True)
+        png = fig.to_image(format="png") if hasattr(fig, "to_image") else None
+        if png:
+            st.download_button("Download PNG", data=png, file_name="mer_cac.png", mime="image/png")
 
     st.caption("Tip: Use the lag toggle to visualize delayed conversion effects.")
 
@@ -132,8 +142,13 @@ def render(filters: dict):
                         color="channel",
                         title="Spend by channel over time",
                         color_discrete_map=CHANNEL_COLORS,
+                        template=px.defaults.template,
                     )
+                    fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
                     st.plotly_chart(fig, use_container_width=True)
+                    png = fig.to_image(format="png") if hasattr(fig, "to_image") else None
+                    if png:
+                        st.download_button("Download PNG", data=png, file_name="channel_spend.png", mime="image/png")
                 with c2:
                     fig = px.line(
                         ch_ts,
@@ -142,8 +157,13 @@ def render(filters: dict):
                         color="channel",
                         title="Attributed ROAS by channel over time",
                         color_discrete_map=CHANNEL_COLORS,
+                        template=px.defaults.template,
                     )
+                    fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
                     st.plotly_chart(fig, use_container_width=True)
+                    png = fig.to_image(format="png") if hasattr(fig, "to_image") else None
+                    if png:
+                        st.download_button("Download PNG", data=png, file_name="channel_roas.png", mime="image/png")
 
     # Small callouts
     max_rev_row = df.loc[df["total_revenue"].idxmax()] if not df.empty else None
@@ -160,3 +180,7 @@ def render(filters: dict):
     with c3:
         if min_cac_row is not None:
             st.metric("Min blended CAC day", f"{min_cac_row['date'].date()}", help=f"${min_cac_row['blended_cac']:,.2f}")
+
+    # CSV export for blended KPIs
+    csv = df.to_csv(index=False).encode("utf-8")
+    st.download_button("Download blended KPIs (CSV)", data=csv, file_name="blended_trends.csv", mime="text/csv")
