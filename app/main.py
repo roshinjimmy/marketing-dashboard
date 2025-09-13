@@ -102,12 +102,14 @@ def sidebar_nav(marketing_df):
         default=(qp_channels or filt_opts.get("channels", [])),
         key="filter_channels",
     )
+    st.sidebar.markdown('<div class="oct-divider"></div>', unsafe_allow_html=True)
     tactics = st.sidebar.multiselect(
         "Tactic",
         options=filt_opts.get("tactics", []),
         default=(qp_tactics or filt_opts.get("tactics", [])),
         key="filter_tactics",
     )
+    st.sidebar.markdown('<div class="oct-divider"></div>', unsafe_allow_html=True)
     states = st.sidebar.multiselect(
         "State",
         options=filt_opts.get("states", []),
@@ -144,6 +146,8 @@ def sidebar_nav(marketing_df):
 
     # Preset chips
     if pd.notna(pd.to_datetime(max_date)):
+        # Divider before quick ranges
+        st.sidebar.markdown('<div class="oct-divider"></div>', unsafe_allow_html=True)
         st.sidebar.markdown("#### Quick ranges")
         # Wrap quick range buttons in a container to target CSS without affecting other buttons
         st.sidebar.markdown('<div id="quick-ranges">', unsafe_allow_html=True)
@@ -169,12 +173,7 @@ def sidebar_nav(marketing_df):
             st.rerun()
         st.sidebar.markdown('</div>', unsafe_allow_html=True)
 
-    # Reset button
-    if st.sidebar.button("Reset filters"):
-        for k in ["filter_channels", "filter_tactics", "filter_states", "filter_date_range"]:
-            if k in st.session_state:
-                del st.session_state[k]
-        st.rerun()
+    # (Removed) Table density toggle per request
     # Sync query params for shareable URLs
     qp_cur = {
         "channels": ",".join(channels) if channels else "",
@@ -190,6 +189,7 @@ def sidebar_nav(marketing_df):
     _update_query_params(qp_cur)
 
     # KPI Targets (optional)
+    st.sidebar.markdown('<div class="oct-divider"></div>', unsafe_allow_html=True)
     with st.sidebar.expander("KPI Targets (optional)"):
         t_mer = st.number_input("Target MER (Blended ROAS)", min_value=0.0, value=0.0, step=0.1, format="%.2f")
         t_roas = st.number_input("Target Attributed ROAS", min_value=0.0, value=0.0, step=0.1, format="%.2f")
@@ -203,6 +203,7 @@ def sidebar_nav(marketing_df):
     }
 
     # Share link
+    st.sidebar.markdown('<div class="oct-divider"></div>', unsafe_allow_html=True)
     with st.sidebar.expander("Share link with filters"):
         parts = []
         for k in ["channels", "tactics", "states", "start", "end"]:
@@ -211,6 +212,16 @@ def sidebar_nav(marketing_df):
                 parts.append(f"{k}={v}")
         qs = ("?" + "&".join(parts)) if parts else ""
         st.code(qs, language="text")
+
+    # Reset button at the very end (filled primary)
+    st.sidebar.markdown('<div class="oct-divider"></div>', unsafe_allow_html=True)
+    st.sidebar.markdown('<div id="reset-filters">', unsafe_allow_html=True)
+    if st.sidebar.button("Reset filters"):
+        for k in ["filter_channels", "filter_tactics", "filter_states", "filter_date_range"]:
+            if k in st.session_state:
+                del st.session_state[k]
+        st.rerun()
+    st.sidebar.markdown('</div>', unsafe_allow_html=True)
 
     filters.update({"channels": channels, "tactics": tactics, "states": states, "date_range": date_range, "targets": targets})
     return page, filters

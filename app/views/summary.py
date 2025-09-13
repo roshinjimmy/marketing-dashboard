@@ -104,10 +104,40 @@ def render(filters: dict, marketing_df: pd.DataFrame, business_df: pd.DataFrame,
     display_cols = ["channel", "spend", "attributed_revenue", "roas", "impressions", "clicks"]
     if roas_target:
         display_cols.append("ROAS Δ vs target")
+    # Build formatted display copy (keep raw for CSV export)
+    display_df = channel_grp[display_cols].sort_values("spend", ascending=False).copy()
+    # Formatting helpers
+    def _fmt_money(v):
+        try:
+            return f"${v:,.0f}"
+        except Exception:
+            return "-$-"
+    def _fmt_int(v):
+        try:
+            return f"{int(v):,}"
+        except Exception:
+            return "0"
+    def _fmt_roas(v):
+        try:
+            return f"{v:,.2f}"
+        except Exception:
+            return "0.00"
+    # Apply formatting
+    if "spend" in display_df:
+        display_df["spend"] = display_df["spend"].apply(_fmt_money)
+    if "attributed_revenue" in display_df:
+        display_df["attributed_revenue"] = display_df["attributed_revenue"].apply(_fmt_money)
+    if "roas" in display_df:
+        display_df["roas"] = display_df["roas"].apply(_fmt_roas)
+    if "impressions" in display_df:
+        display_df["impressions"] = display_df["impressions"].apply(_fmt_int)
+    if "clicks" in display_df:
+        display_df["clicks"] = display_df["clicks"].apply(_fmt_int)
+    if "ROAS Δ vs target" in display_df:
+        display_df["ROAS Δ vs target"] = display_df["ROAS Δ vs target"].apply(lambda v: f"{v:+.2f}" if pd.notna(v) else "")
+
     st.dataframe(
-        channel_grp[display_cols]
-        .sort_values("spend", ascending=False)
-        .rename(columns={
+        display_df.rename(columns={
             "channel": "Channel",
             "spend": "Spend",
             "attributed_revenue": "Attributed revenue",

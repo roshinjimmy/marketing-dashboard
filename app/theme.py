@@ -98,6 +98,13 @@ def apply_theme(name: str) -> str:
             color: #6b7280;
         }}
 
+            /* Subtle sidebar dividers */
+            .oct-divider {{
+                height: 1px;
+                background: linear-gradient(to right, rgba(15,23,42,0.08), rgba(15,23,42,0.02));
+                margin: 8px 0 10px;
+            }}
+
     /* Text elements */
     h1, h2, h3, h4, h5, h6, p, span, label, li, code, small, strong {{ color: var(--oct-text) !important; }}
     a {{ color: var(--oct-link); }}
@@ -199,6 +206,13 @@ def apply_theme(name: str) -> str:
             [data-testid="stSidebar"] .stButton > button:active,
             [data-testid="stSidebar"] button[kind]:active {{
                 transform: translateY(1px);
+            }}
+
+            /* Make Reset filters button filled to stand out */
+            #reset-filters .stButton > button {{
+                background-color: var(--oct-primary) !important;
+                color: #ffffff !important;
+                border-color: var(--oct-primary) !important;
             }}
 
                     /* Header Deploy button (Streamlit Cloud) to softer outline */
