@@ -30,17 +30,17 @@ def render():
     nulls_m = m[num_cols_m].isna().sum().rename("nulls")
     zeros_m = (m[num_cols_m] == 0).sum().rename("zeros")
     dq_m = pd.concat([nulls_m, zeros_m], axis=1)
-    st.write("Marketing numeric columns:")
-    st.dataframe(dq_m)
-    st.download_button("Download marketing DQ CSV", dq_m.to_csv().encode("utf-8"), file_name="marketing_dq.csv", mime="text/csv")
-
     num_cols_b = ["orders", "new_orders", "new_customers", "total_revenue", "gross_profit", "cogs"]
     nulls_b = b[num_cols_b].isna().sum().rename("nulls")
     zeros_b = (b[num_cols_b] == 0).sum().rename("zeros")
     dq_b = pd.concat([nulls_b, zeros_b], axis=1)
-    st.write("Business numeric columns:")
-    st.dataframe(dq_b)
-    st.download_button("Download business DQ CSV", dq_b.to_csv().encode("utf-8"), file_name="business_dq.csv", mime="text/csv")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.write("Marketing numeric columns:")
+        st.dataframe(dq_m)
+    with col2:
+        st.write("Business numeric columns:")
+        st.dataframe(dq_b)
 
     # Reconciliation: platform attributed revenue vs business revenue
     st.markdown("### Revenue Reconciliation")
@@ -80,4 +80,15 @@ def render():
                     st.success("No CPC outliers detected (|z| <= 3).")
                 else:
                     st.dataframe(outliers.sort_values("cpc_z", key=lambda s: s.abs(), ascending=False), use_container_width=True)
-                    st.download_button("Download CPC outliers (CSV)", outliers.to_csv(index=False).encode("utf-8"), file_name="cpc_outliers.csv", mime="text/csv")
+
+    with st.expander("Guide: metrics & interpretation"):
+        st.write(
+            """
+            - Coverage: confirm both data sources align in date ranges and record counts.
+            - Nulls & Zeros: zeros may be legitimate but spikes can indicate tracking or ingestion issues.
+            - Revenue reconciliation: large sustained deltas could signal attribution or accounting differences; investigate methodology.
+            - CPC outliers: extreme CPC spikes often trace to delivery anomalies, limited audience, or reporting glitches.
+            - To export data or charts, use the Export Data button in the header.
+            """
+        )
+    # Export note removed; exports not available.

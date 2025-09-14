@@ -17,7 +17,12 @@ pip install -r requirements.txt
 streamlit run app/main.py
 ```
 
-Data files are expected at `Marketing Intelligence Dashboard/` relative to the repo root.
+Data files are expected at `data/` relative to the repo root. You can also point to a custom folder by setting an environment variable before running:
+
+```bash
+export DATA_DIR=/absolute/path/to/your/data
+streamlit run app/main.py
+```
 
 ## Deployment (Streamlit Cloud)
 
@@ -30,12 +35,18 @@ Live app: https://marketing-dashboard-lifesight.streamlit.app/
 
 ## Screenshots
 
-Add a couple of representative screenshots for quick review:
+Place a few representative screenshots in `docs/screenshots/` for quick review:
 
-- Executive Summary (KPIs + channel breakdown)
-- Trends (Spend vs Revenue; MER & Blended CAC)
-- Profit (Contribution & Profit ROAS)
-- Data Quality (coverage, reconciliation, outliers)
+- `docs/screenshots/summary.png` – Executive Summary (KPIs + channel breakdown)
+- `docs/screenshots/trends.png` – Trends (Spend vs Revenue; MER & Blended CAC)
+- `docs/screenshots/profit.png` – Profit (Contribution & Profit ROAS)
+- `docs/screenshots/geo_tactic.png` – Geo & Tactic (bars or map)
+- `docs/screenshots/data_quality.png` – Data Quality (coverage, reconciliation, outliers)
+
+Tips:
+- In Streamlit, use the menu → "Settings → Enable wide mode" for better captures.
+- Prefer 125% zoom and hide the sidebar if the focus is on charts.
+- Name files exactly as above so they render consistently in PRs and READMEs.
 
 ## Project structure
 
@@ -45,6 +56,6 @@ Add a couple of representative screenshots for quick review:
 	- `metrics.py` – derived metrics
 	- `views/` – pages
 		- `summary.py`, `drilldown.py`
-- `Marketing Intelligence Dashboard/` – CSV inputs (Facebook, Google, TikTok, business)
+- `data/` – CSV inputs (Facebook, Google, TikTok, business)
 - `docs/plan.md` – detailed plan and scope
 - `requirements.txt` – pinned dependencies

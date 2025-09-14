@@ -3,7 +3,6 @@ from views import summary, drilldown, trends, data_quality, profit, geo_tactic
 from datetime import timedelta, date, datetime
 import pandas as pd
 import data as data_mod
-import metrics as metrics_mod
 from theme import apply_theme
 
 st.set_page_config(page_title="Marketing Intelligence Dashboard", layout="wide")
@@ -76,10 +75,8 @@ def sidebar_nav(marketing_df):
         """,
         unsafe_allow_html=True,
     )
-    # Force light theme always
-    css = apply_theme("Light")
-    st.markdown(css, unsafe_allow_html=True)
-    page = st.sidebar.radio("Go to", ["Executive Summary", "Drilldown", "Trends", "Profit", "Geo & Tactic", "Data Quality"]) 
+    # Theme CSS is now injected globally in main()
+    page = st.sidebar.radio("Go to", ["Executive Summary", "Drilldown", "Trends", "Profit", "Geo & Tactic", "Data Quality"], label_visibility="collapsed") 
     # Filters
     filters = {}
     filt_opts = data_mod.get_available_filters(marketing_df)
@@ -96,25 +93,42 @@ def sidebar_nav(marketing_df):
         qp_channels = qp_tactics = qp_states = []
         qp_start = qp_end = None
 
-    channels = st.sidebar.multiselect(
+    # Helper to render a simple checkbox group (no 'All' toggle)
+    def checkbox_group(label: str, options: list[str], qp_default: list[str], group_key: str) -> list[str]:
+        options = options or []
+        st.sidebar.markdown(f"#### {label}")
+        # Determine base selection: session -> query params -> all
+        prev_sel = st.session_state.get(group_key)
+        base_sel = [o for o in (prev_sel if isinstance(prev_sel, list) else (qp_default or options)) if o in options]
+        selected: list[str] = []
+        for opt in options:
+            opt_key = f"chk_{group_key}_{opt}"
+            checked = st.sidebar.checkbox(opt, value=(opt in base_sel), key=opt_key)
+            if checked:
+                selected.append(opt)
+        # Persist group selection for reset/share and URL sync
+        st.session_state[group_key] = selected
+        return selected
+
+    channels = checkbox_group(
         "Channel",
         options=filt_opts.get("channels", []),
-        default=(qp_channels or filt_opts.get("channels", [])),
-        key="filter_channels",
+        qp_default=qp_channels,
+        group_key="filter_channels",
     )
     st.sidebar.markdown('<div class="oct-divider"></div>', unsafe_allow_html=True)
-    tactics = st.sidebar.multiselect(
+    tactics = checkbox_group(
         "Tactic",
         options=filt_opts.get("tactics", []),
-        default=(qp_tactics or filt_opts.get("tactics", [])),
-        key="filter_tactics",
+        qp_default=qp_tactics,
+        group_key="filter_tactics",
     )
     st.sidebar.markdown('<div class="oct-divider"></div>', unsafe_allow_html=True)
-    states = st.sidebar.multiselect(
+    states = checkbox_group(
         "State",
         options=filt_opts.get("states", []),
-        default=(qp_states or filt_opts.get("states", [])),
-        key="filter_states",
+        qp_default=qp_states,
+        group_key="filter_states",
     )
     # Default last 60 days if available
     min_date = marketing_df["date"].min() if not marketing_df.empty else None
@@ -217,9 +231,17 @@ def sidebar_nav(marketing_df):
     st.sidebar.markdown('<div class="oct-divider"></div>', unsafe_allow_html=True)
     st.sidebar.markdown('<div id="reset-filters">', unsafe_allow_html=True)
     if st.sidebar.button("Reset filters"):
+        # Clear group selections and date
         for k in ["filter_channels", "filter_tactics", "filter_states", "filter_date_range"]:
             if k in st.session_state:
                 del st.session_state[k]
+        # Remove individual option checkboxes
+        for opt in (filt_opts.get("channels", []) or []):
+            st.session_state.pop(f"chk_filter_channels_{opt}", None)
+        for opt in (filt_opts.get("tactics", []) or []):
+            st.session_state.pop(f"chk_filter_tactics_{opt}", None)
+        for opt in (filt_opts.get("states", []) or []):
+            st.session_state.pop(f"chk_filter_states_{opt}", None)
         st.rerun()
     st.sidebar.markdown('</div>', unsafe_allow_html=True)
 
@@ -227,14 +249,43 @@ def sidebar_nav(marketing_df):
     return page, filters
 
 
+def _apply_filters(df: pd.DataFrame, filters: dict) -> pd.DataFrame:
+    if df is None or df.empty:
+        return df
+    out = df.copy()
+    channels = (filters or {}).get("channels") or []
+    tactics = (filters or {}).get("tactics") or []
+    states = (filters or {}).get("states") or []
+    date_range = (filters or {}).get("date_range") or []
+    if channels:
+        out = out[out["channel"].isin(channels)]
+    if tactics:
+        out = out[out["tactic"].isin(tactics)]
+    if states:
+        out = out[out["state"].isin(states)]
+    if isinstance(date_range, list) and len(date_range) == 2:
+        start, end = pd.to_datetime(date_range[0]), pd.to_datetime(date_range[1])
+        out = out[(out["date"] >= start) & (out["date"] <= end)]
+    return out
+
+
+# Export center removed per request
+
+
 def main():
-    st.title("Marketing Intelligence Dashboard")
+    # Inject theme CSS globally
+    css = apply_theme("Light")
+    st.markdown(css, unsafe_allow_html=True)
+    # Load data first
     marketing_df, business_df, marketing_daily = data_mod.load_all()
     # Store for other views
     st.session_state["marketing_df"] = marketing_df
     st.session_state["business_df"] = business_df
     st.session_state["marketing_daily"] = marketing_daily
     page, filters = sidebar_nav(marketing_df)
+    
+    # Page title
+    st.title("Marketing Intelligence Dashboard")
 
     if page == "Executive Summary":
         summary.render(filters, marketing_df, business_df, marketing_daily)

@@ -56,18 +56,14 @@ def render(filters: dict):
         fig.update_traces(marker_color=[CHANNEL_COLORS.get(c, "#888888") for c in df_sorted["channel"]])
         fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
         st.plotly_chart(fig, use_container_width=True)
-        png = fig.to_image(format="png") if hasattr(fig, "to_image") else None
-        if png:
-            st.download_button("Download PNG", data=png, file_name="spend_by_channel.png", mime="image/png")
+        
     with c2:
         df_sorted = ch.sort_values("roas", ascending=False)
         fig = px.bar(df_sorted, x="channel", y="roas", title="Attributed ROAS by channel", template=px.defaults.template)
         fig.update_traces(marker_color=[CHANNEL_COLORS.get(c, "#888888") for c in df_sorted["channel"]])
         fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
         st.plotly_chart(fig, use_container_width=True)
-        png = fig.to_image(format="png") if hasattr(fig, "to_image") else None
-        if png:
-            st.download_button("Download PNG", data=png, file_name="roas_by_channel.png", mime="image/png")
+        
 
     # Campaign table
     st.markdown("### Campaigns")
@@ -99,16 +95,18 @@ def render(filters: dict):
         }),
         use_container_width=True,
     )
-    with st.expander("Metric definitions"):
+    with st.expander("Guide: metrics & interpretation"):
         st.write("""
+        Metrics
         - CTR = Clicks / Impressions
         - CPC = Spend / Clicks
         - CPM = 1000 * Spend / Impressions
         - Attributed ROAS = Attributed Revenue / Spend (platform attribution)
+
+        How to interpret
+        - Start with the Channel bars to see where budget concentrates and which channels return the most (Attributed ROAS).
+        - Use the Campaigns table to drill into tactics, states, or campaigns driving performance shifts.
+        - CTR, CPC, CPM help diagnose whether issues are from funnel top (impressions/CTR), mid (CPC), or bottom (ROAS).
+        
         """)
-    st.download_button(
-        label="Download filtered campaigns (CSV)",
-        data=camp.to_csv(index=False).encode("utf-8"),
-        file_name="campaigns_filtered.csv",
-        mime="text/csv",
-    )
+    # Export note removed; exports not available.

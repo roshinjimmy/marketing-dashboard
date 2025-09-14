@@ -1,12 +1,33 @@
 from __future__ import annotations
 from pathlib import Path
+import os
 from typing import Dict, Tuple, Iterable
 
 import pandas as pd
 import streamlit as st
 
 ROOT = Path(__file__).resolve().parents[1]
-DATA_DIR = ROOT / "Marketing Intelligence Dashboard"
+
+# Prefer the new 'data' folder; allow override via DATA_DIR env; fallback to old folder name
+def _resolve_data_dir() -> Path:
+    # 1) Explicit override via environment variable
+    env_dir = os.environ.get("DATA_DIR")
+    if env_dir:
+        p = Path(env_dir).expanduser().resolve()
+        if p.exists():
+            return p
+    # 2) New default 'data' in repo root
+    p_new = ROOT / "data"
+    if p_new.exists():
+        return p_new
+    # 3) Back-compat old folder name
+    p_old = ROOT / "Marketing Intelligence Dashboard"
+    if p_old.exists():
+        return p_old
+    # 4) Fallback to root (app will show empty dataframes if files are absent)
+    return ROOT
+
+DATA_DIR = _resolve_data_dir()
 
 
 def _read_marketing_csv(path: Path, channel: str) -> pd.DataFrame:
@@ -55,7 +76,7 @@ def _read_marketing_csv(path: Path, channel: str) -> pd.DataFrame:
 
 def load_marketing_data(data_dir: Path | None = None) -> pd.DataFrame:
     """Load and combine Facebook, Google, TikTok CSVs into a unified DataFrame."""
-    ddir = data_dir or DATA_DIR
+    ddir = (data_dir or DATA_DIR)
     paths = {
         "Facebook": ddir / "Facebook.csv",
         "Google": ddir / "Google.csv",
@@ -102,7 +123,7 @@ def load_business_data(data_dir: Path | None = None) -> pd.DataFrame:
     Incoming columns: date,# of orders,# of new orders,new customers,total revenue,gross profit,COGS
     Standardized: date, orders, new_orders, new_customers, total_revenue, gross_profit, cogs
     """
-    ddir = data_dir or DATA_DIR
+    ddir = (data_dir or DATA_DIR)
     path = ddir / "business.csv"
     if not path.exists():
         return pd.DataFrame(

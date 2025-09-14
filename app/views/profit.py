@@ -95,16 +95,12 @@ def render(filters: dict):
         fig = px.line(df, x="date", y="contribution_after_ads", title="Contribution after ads over time", template=px.defaults.template)
         fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
         st.plotly_chart(fig, use_container_width=True)
-        png = fig.to_image(format="png") if hasattr(fig, "to_image") else None
-        if png:
-            st.download_button("Download PNG", data=png, file_name="contribution_trend.png", mime="image/png")
+        
     with c2:
         fig = px.line(df, x="date", y="profit_roas", title="Profit ROAS over time", template=px.defaults.template)
         fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
         st.plotly_chart(fig, use_container_width=True)
-        png = fig.to_image(format="png") if hasattr(fig, "to_image") else None
-        if png:
-            st.download_button("Download PNG", data=png, file_name="profit_roas_trend.png", mime="image/png")
+        
 
     st.caption("Contribution after ads = Gross Profit − Total Ad Spend. Profit ROAS = Gross Profit / Total Ad Spend.")
 
@@ -120,6 +116,13 @@ def render(filters: dict):
         st.write("Bottom days")
         st.dataframe(day_tbl.sort_values("contribution_after_ads", ascending=True).head(top_n), use_container_width=True)
 
-    # CSV export
-    csv = df.to_csv(index=False).encode("utf-8")
-    st.download_button("Download profit KPIs (CSV)", data=csv, file_name="profit_kpis.csv", mime="text/csv")
+    with st.expander("Guide: metrics & interpretation"):
+        st.write(
+            """
+            - Contribution after ads = Gross Profit − Ad Spend; this approximates contribution margin after marketing.
+            - Profit ROAS = Gross Profit / Ad Spend; useful when revenue ROAS is misleading due to COGS shifts.
+            - Use rolling averages to smooth volatility; use Lag to align revenue/gross profit timing to spend.
+            - Top/Bottom days help spot anomalies, promos, or tracking issues worth investigating.
+            
+            """
+        )

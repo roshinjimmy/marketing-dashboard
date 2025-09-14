@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
+import plotly.express as px
 from metrics import compute_blended_kpis
+
 
 
 def _apply_filters(df: pd.DataFrame, filters: dict) -> pd.DataFrame:
@@ -41,11 +43,35 @@ def _fmt_float(x: float) -> str:
 def render(filters: dict, marketing_df: pd.DataFrame, business_df: pd.DataFrame, marketing_daily: pd.DataFrame):
     st.subheader("Executive Summary")
 
+    # Export UI removed per request
+
     # Apply filters to marketing data for channel-level cards
     m_filtered = _apply_filters(marketing_df, filters)
     # For blended KPIs, aggregate filtered marketing then join with business
     m_daily = m_filtered.groupby("date", as_index=False)[["impressions", "clicks", "spend", "attributed_revenue"]].sum()
     blended = compute_blended_kpis(m_daily, business_df)
+
+    # Export handled at header button
+
+    # Helper: compute previous period date range for deltas
+    def _prev_period_rng() -> tuple[pd.Timestamp | None, pd.Timestamp | None]:
+        dr = (filters or {}).get("date_range") or []
+        if not (isinstance(dr, list) and len(dr) == 2):
+            return None, None
+        try:
+            cur_start = pd.to_datetime(dr[0])
+            cur_end = pd.to_datetime(dr[1])
+        except Exception:
+            return None, None
+        if pd.isna(cur_start) or pd.isna(cur_end):
+            return None, None
+        # previous period length matches current; end is day before current start
+        period_len = (cur_end - cur_start).days
+        prev_end = cur_start - pd.Timedelta(days=1)
+        prev_start = prev_end - pd.Timedelta(days=period_len)
+        return prev_start.normalize(), prev_end.normalize()
+
+    pp_start, pp_end = _prev_period_rng()
 
     total_spend = float(m_daily["spend"].sum()) if not m_daily.empty else 0.0
     total_revenue = float(blended["total_revenue"].sum()) if not blended.empty else 0.0
@@ -55,27 +81,57 @@ def render(filters: dict, marketing_df: pd.DataFrame, business_df: pd.DataFrame,
     blended_cac = (total_spend / total_new_customers) if total_new_customers else 0.0
     attributed_roas = (total_attr_rev / total_spend) if total_spend else 0.0
 
+    # Previous period aggregates (if date range is set)
+    spend_pp = rev_pp = attr_rev_pp = mer_pp = cac_pp = roas_pp = None
+    if pp_start is not None and pp_end is not None:
+        # Marketing prev window
+        m_pp = marketing_df[(marketing_df["date"] >= pp_start) & (marketing_df["date"] <= pp_end)].copy()
+        # Respect current categorical filters (channels/tactics/states)
+        m_pp = _apply_filters(m_pp, {**(filters or {}), "date_range": [pp_start, pp_end]})
+        m_daily_pp = m_pp.groupby("date", as_index=False)[["impressions", "clicks", "spend", "attributed_revenue"]].sum()
+        blended_pp = compute_blended_kpis(m_daily_pp, business_df[(business_df["date"] >= pp_start) & (business_df["date"] <= pp_end)])
+        spend_pp = float(m_daily_pp["spend"].sum()) if not m_daily_pp.empty else 0.0
+        rev_pp = float(blended_pp["total_revenue"].sum()) if not blended_pp.empty else 0.0
+        attr_rev_pp = float(m_pp["attributed_revenue"].sum()) if not m_pp.empty else 0.0
+        mer_pp = (rev_pp / spend_pp) if spend_pp else 0.0
+        # Use prev window new customers for CAC baseline
+        b_pp = business_df[(business_df["date"] >= pp_start) & (business_df["date"] <= pp_end)]
+        new_cust_pp = float(b_pp["new_customers"].sum()) if not b_pp.empty else 0.0
+        cac_pp = (spend_pp / new_cust_pp) if new_cust_pp else 0.0
+        roas_pp = (attr_rev_pp / spend_pp) if spend_pp else 0.0
+
+    def pct_delta(cur: float, prev: float | None) -> str | None:
+        if prev is None:
+            return None
+        try:
+            if prev == 0:
+                return None
+            pct = 100.0 * (cur - prev) / prev
+            return f"{pct:+.1f}%"
+        except Exception:
+            return None
+
     targets = (filters or {}).get("targets", {})
     tg_mer = targets.get("mer")
     tg_cac = targets.get("cac")
 
     c1, c2, c3, c4 = st.columns(4)
     with c1:
-        st.metric("Spend", _fmt_currency(total_spend))
+        st.metric("Spend", _fmt_currency(total_spend), delta=pct_delta(total_spend, spend_pp))
     with c2:
-        st.metric("Total revenue", _fmt_currency(total_revenue))
+        st.metric("Total revenue", _fmt_currency(total_revenue), delta=pct_delta(total_revenue, rev_pp))
     with c3:
         if tg_mer:
             delta = mer - tg_mer
             st.metric("MER", _fmt_float(mer), delta=f"{delta:+.2f}")
         else:
-            st.metric("MER", _fmt_float(mer))
+            st.metric("MER", _fmt_float(mer), delta=pct_delta(mer, mer_pp))
     with c4:
         if tg_cac:
             delta = tg_cac - blended_cac  # lower CAC is better, so invert
-            st.metric("Blended CAC", _fmt_currency(blended_cac), delta=f"{delta:+.0f}")
+            st.metric("Blended CAC", _fmt_currency(blended_cac), delta=f"{delta:+.0f}", delta_color="inverse")
         else:
-            st.metric("Blended CAC", _fmt_currency(blended_cac))
+            st.metric("Blended CAC", _fmt_currency(blended_cac), delta=pct_delta(blended_cac, cac_pp), delta_color="inverse")
 
     # Second row: attributed ROAS vs target (if provided)
     tg_roas = targets.get("roas")
@@ -83,6 +139,10 @@ def render(filters: dict, marketing_df: pd.DataFrame, business_df: pd.DataFrame,
         c = st.columns(1)[0]
         with c:
             st.metric("Attributed ROAS", _fmt_float(attributed_roas), delta=f"{(attributed_roas - tg_roas):+.2f}")
+    else:
+        c = st.columns(1)[0]
+        with c:
+            st.metric("Attributed ROAS", _fmt_float(attributed_roas), delta=pct_delta(attributed_roas, roas_pp))
 
     st.markdown("### Channel breakdown")
     if m_filtered.empty:
@@ -148,23 +208,21 @@ def render(filters: dict, marketing_df: pd.DataFrame, business_df: pd.DataFrame,
         use_container_width=True,
     )
 
-    # Exports
-    st.download_button(
-        label="Download blended KPIs (CSV)",
-        data=blended.to_csv(index=False).encode("utf-8") if blended is not None else b"",
-        file_name="blended_summary.csv",
-        mime="text/csv",
-    )
-    st.download_button(
-        label="Download channel breakdown (CSV)",
-        data=channel_grp.to_csv(index=False).encode("utf-8") if channel_grp is not None else b"",
-        file_name="channel_breakdown.csv",
-        mime="text/csv",
-    )
-    with st.expander("Metric definitions"):
-        st.write("""
-        - MER (Blended ROAS) = Total Revenue / Total Ad Spend
-        - Blended CAC = Total Ad Spend / New Customers
-        - AOV = Total Revenue / Orders
-        - Attributed ROAS = Attributed Revenue / Spend (per channel; from platform reporting)
-        """)
+    with st.expander("Guide: metrics & interpretation"):
+        st.write(
+            """
+            Metrics
+            - MER (Blended ROAS) = Total Revenue / Total Ad Spend
+            - Blended CAC = Total Ad Spend / New Customers
+            - AOV = Total Revenue / Orders
+            - Attributed ROAS = Attributed Revenue / Spend (per channel; from platform reporting)
+
+            How to interpret
+            - Use the filters to isolate channels, tactics, or states and a date window.
+            - KPIs show current totals; deltas compare to the immediately previous, same-length period.
+            - MER reflects overall return on ad spend from business revenue; Attributed ROAS comes from platform reporting.
+            - Blended CAC is inverted for color semantics (lower is better); look for downward movement.
+            - The Channel breakdown highlights where spend is concentrated and where efficiency (ROAS) is higher or lower.
+            
+            """
+        )

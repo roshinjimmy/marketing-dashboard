@@ -36,6 +36,11 @@ def render(filters: dict):
         st.warning("No data for selected filters.")
         return
 
+    # Options
+    st.sidebar.markdown("### Geo options")
+    map_mode = st.sidebar.selectbox("State view", options=["Bars", "US Map"], index=0)
+    map_metric = st.sidebar.selectbox("Metric for map", options=["spend", "roas"], index=0)
+
     # By state
     st.markdown("### By state")
     state_grp = df.groupby("state", as_index=False).agg({"spend": "sum", "attributed_revenue": "sum"})
@@ -52,77 +57,57 @@ def render(filters: dict):
         + px.colors.qualitative.Safe
     )
     state_color_map = {s: palette[i % len(palette)] for i, s in enumerate(top_states)}
-    c1, c2 = st.columns(2)
-    with c1:
-        fig = px.bar(
-            top_spend,
-            x="state",
-            y="spend",
-            color="state",
-            color_discrete_map=state_color_map,
-            title="Top states by spend",
+    if map_mode == "Bars":
+        c1, c2 = st.columns(2)
+        with c1:
+            fig = px.bar(
+                top_spend,
+                x="state",
+                y="spend",
+                color="state",
+                color_discrete_map=state_color_map,
+                title="Top states by spend",
+                template=px.defaults.template,
+                category_orders={"state": list(top_states)},
+            )
+            fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
+            fig.update_traces(hovertemplate="State: %{x}<br>Spend: $%{y:,}<extra></extra>")
+            fig.update_layout(showlegend=False)
+            st.plotly_chart(fig, use_container_width=True)
+            
+        with c2:
+            fig = px.bar(
+                top_roas,
+                x="state",
+                y="roas",
+                color="state",
+                color_discrete_map=state_color_map,
+                title="Top states by ROAS",
+                template=px.defaults.template,
+                category_orders={"state": list(top_states)},
+            )
+            fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
+            fig.update_traces(hovertemplate="State: %{x}<br>ROAS: %{y:.2f}<extra></extra>")
+            fig.update_layout(legend_title_text="State")
+            st.plotly_chart(fig, use_container_width=True)
+            
+    else:
+        # US choropleth (requires two-letter state codes in `state` column)
+        metric_col = map_metric
+        map_df = state_grp[state_grp[metric_col] > 0].copy()
+        fig = px.choropleth(
+            map_df,
+            locations="state",
+            locationmode="USA-states",
+            color=metric_col,
+            scope="usa",
+            color_continuous_scale="Blues" if metric_col == "spend" else "Tealrose",
+            title=f"US map: {metric_col.upper()} by state",
             template=px.defaults.template,
-            category_orders={"state": list(top_states)},
         )
         fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
-        fig.update_traces(hovertemplate="State: %{x}<br>Spend: $%{y:,}<extra></extra>")
-        fig.update_layout(showlegend=False)
         st.plotly_chart(fig, use_container_width=True)
-        colA1, colA2 = st.columns([1,1])
-        with colA1:
-            st.download_button(
-                "Download state spend (CSV)",
-                data=top_spend.to_csv(index=False).encode("utf-8"),
-                file_name="state_top_spend.csv",
-                mime="text/csv",
-            )
-        with colA2:
-            try:
-                import plotly.io as pio
-                img_bytes = fig.to_image(format="png")
-                st.download_button(
-                    "Download chart (PNG)",
-                    data=img_bytes,
-                    file_name="state_top_spend.png",
-                    mime="image/png",
-                )
-            except Exception:
-                pass
-    with c2:
-        fig = px.bar(
-            top_roas,
-            x="state",
-            y="roas",
-            color="state",
-            color_discrete_map=state_color_map,
-            title="Top states by ROAS",
-            template=px.defaults.template,
-            category_orders={"state": list(top_states)},
-        )
-        fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
-        fig.update_traces(hovertemplate="State: %{x}<br>ROAS: %{y:.2f}<extra></extra>")
-        fig.update_layout(legend_title_text="State")
-        st.plotly_chart(fig, use_container_width=True)
-        colB1, colB2 = st.columns([1,1])
-        with colB1:
-            st.download_button(
-                "Download state ROAS (CSV)",
-                data=top_roas.to_csv(index=False).encode("utf-8"),
-                file_name="state_top_roas.csv",
-                mime="text/csv",
-            )
-        with colB2:
-            try:
-                import plotly.io as pio
-                img_bytes = fig.to_image(format="png")
-                st.download_button(
-                    "Download chart (PNG)",
-                    data=img_bytes,
-                    file_name="state_top_roas.png",
-                    mime="image/png",
-                )
-            except Exception:
-                pass
+        # Exports are centralized in the Export center on the Executive Summary
 
     # By tactic
     st.markdown("### By tactic")
@@ -141,23 +126,14 @@ def render(filters: dict):
     fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
     fig.update_traces(hovertemplate="Tactic: %{x}<br>Spend: $%{y:,}<br>Channel: %{legendgroup}<extra></extra>")
     st.plotly_chart(fig, use_container_width=True)
-    c3, c4 = st.columns([1,1])
-    with c3:
-        st.download_button(
-            "Download tactic spend (CSV)",
-            data=tactic_grp.to_csv(index=False).encode("utf-8"),
-            file_name="tactic_spend_by_channel.csv",
-            mime="text/csv",
+    
+
+    with st.expander("Guide: metrics & interpretation"):
+        st.write(
+            """
+            - Use the state view to see geographic performance; bars help rank, the map helps spot regional clusters.
+            - ROAS highlights efficiency; Spend highlights scale. Look for states with high ROAS and enough Spend to matter.
+            - The tactic view shows the mix by channel; investigate tactics with high Spend but weak ROAS.
+            
+            """
         )
-    with c4:
-        try:
-            import plotly.io as pio
-            img_bytes = fig.to_image(format="png")
-            st.download_button(
-                "Download chart (PNG)",
-                data=img_bytes,
-                file_name="tactic_spend_by_channel.png",
-                mime="image/png",
-            )
-        except Exception:
-            pass

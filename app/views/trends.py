@@ -4,7 +4,6 @@ import plotly.express as px
 from theme import CHANNEL_COLORS
 
 from metrics import compute_blended_kpis
-import io
 
 
 def _apply_filters(df: pd.DataFrame, filters: dict) -> pd.DataFrame:
@@ -104,16 +103,12 @@ def render(filters: dict):
         fig = px.line(df, x="date", y=["spend", "total_revenue"], title="Spend vs Total Revenue", template=px.defaults.template)
         fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
         st.plotly_chart(fig, use_container_width=True)
-        png = fig.to_image(format="png") if hasattr(fig, "to_image") else None
-        if png:
-            st.download_button("Download PNG", data=png, file_name="spend_vs_revenue.png", mime="image/png")
+        
     with c2:
         fig = px.line(df, x="date", y=["mer", "blended_cac"], title="MER and Blended CAC", template=px.defaults.template)
         fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
         st.plotly_chart(fig, use_container_width=True)
-        png = fig.to_image(format="png") if hasattr(fig, "to_image") else None
-        if png:
-            st.download_button("Download PNG", data=png, file_name="mer_cac.png", mime="image/png")
+        
 
     st.caption("Tip: Use the lag toggle to visualize delayed conversion effects.")
 
@@ -146,9 +141,7 @@ def render(filters: dict):
                     )
                     fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
                     st.plotly_chart(fig, use_container_width=True)
-                    png = fig.to_image(format="png") if hasattr(fig, "to_image") else None
-                    if png:
-                        st.download_button("Download PNG", data=png, file_name="channel_spend.png", mime="image/png")
+                    # Exports are centralized in the Export center on the Executive Summary
                 with c2:
                     fig = px.line(
                         ch_ts,
@@ -161,9 +154,7 @@ def render(filters: dict):
                     )
                     fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
                     st.plotly_chart(fig, use_container_width=True)
-                    png = fig.to_image(format="png") if hasattr(fig, "to_image") else None
-                    if png:
-                        st.download_button("Download PNG", data=png, file_name="channel_roas.png", mime="image/png")
+                    # Exports are centralized in the Export center on the Executive Summary
 
     # Small callouts
     max_rev_row = df.loc[df["total_revenue"].idxmax()] if not df.empty else None
@@ -181,6 +172,13 @@ def render(filters: dict):
         if min_cac_row is not None:
             st.metric("Min blended CAC day", f"{min_cac_row['date'].date()}", help=f"${min_cac_row['blended_cac']:,.2f}")
 
-    # CSV export for blended KPIs
-    csv = df.to_csv(index=False).encode("utf-8")
-    st.download_button("Download blended KPIs (CSV)", data=csv, file_name="blended_trends.csv", mime="text/csv")
+    with st.expander("Guide: metrics & interpretation"):
+        st.write(
+            """
+            - Spend vs Total Revenue shows the relationship between investment and top-line outcomes; consider enabling 7-day rolling averages for seasonality/noise.
+            - MER and Blended CAC track efficiency: MER higher is better; CAC lower is better.
+            - The Lag option shifts revenue to simulate delayed conversions; use it to test attribution lag hypotheses.
+            - Per-channel trends help catch mix shifts: a channel with rising spend but falling ROAS may need attention.
+            
+            """
+        )
