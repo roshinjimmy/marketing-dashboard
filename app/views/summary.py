@@ -1,7 +1,9 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 from metrics import compute_blended_kpis
+from theme import CHANNEL_COLORS
 
 
 
@@ -43,15 +45,11 @@ def _fmt_float(x: float) -> str:
 def render(filters: dict, marketing_df: pd.DataFrame, business_df: pd.DataFrame, marketing_daily: pd.DataFrame):
     st.subheader("Executive Summary")
 
-    # Export UI removed per request
-
     # Apply filters to marketing data for channel-level cards
     m_filtered = _apply_filters(marketing_df, filters)
     # For blended KPIs, aggregate filtered marketing then join with business
     m_daily = m_filtered.groupby("date", as_index=False)[["impressions", "clicks", "spend", "attributed_revenue"]].sum()
     blended = compute_blended_kpis(m_daily, business_df)
-
-    # Export handled at header button
 
     # Helper: compute previous period date range for deltas
     def _prev_period_rng() -> tuple[pd.Timestamp | None, pd.Timestamp | None]:
@@ -115,39 +113,193 @@ def render(filters: dict, marketing_df: pd.DataFrame, business_df: pd.DataFrame,
     tg_mer = targets.get("mer")
     tg_cac = targets.get("cac")
 
-    c1, c2, c3, c4 = st.columns(4)
+    # Add custom CSS for styled KPI cards
+    st.markdown("""
+    <style>
+    .kpi-card {
+        background-color: white;
+        border-radius: 12px;
+        padding: 15px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.05);
+        text-align: center;
+        border-top: 4px solid;
+        transition: transform 0.3s;
+    }
+    .kpi-card:hover {
+        transform: translateY(-5px);
+    }
+    .kpi-card-spend {
+        border-color: #4267B2;
+    }
+    .kpi-card-revenue {
+        border-color: #42B72A;
+    }
+    .kpi-card-mer {
+        border-color: #0066CC;
+    }
+    .kpi-card-cac {
+        border-color: #DB4437;
+    }
+    .kpi-card-roas {
+        border-color: #25F4EE;
+    }
+    .kpi-label {
+        font-size: 16px;
+        font-weight: 500;
+        color: #555;
+        margin-bottom: 8px;
+    }
+    .kpi-value {
+        font-size: 28px;
+        font-weight: 700;
+        margin-bottom: 8px;
+    }
+    .kpi-delta {
+        font-size: 14px;
+        padding: 4px 8px;
+        border-radius: 12px;
+        display: inline-block;
+    }
+    .kpi-delta-positive {
+        background-color: rgba(66, 183, 42, 0.1);
+        color: #42B72A;
+    }
+    .kpi-delta-negative {
+        background-color: rgba(219, 68, 55, 0.1);
+        color: #DB4437;
+    }
+    .kpi-delta-neutral {
+        background-color: rgba(0, 0, 0, 0.05);
+        color: #555;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    # Creating styled KPI cards with Attributed ROAS included
+    tg_roas = targets.get("roas")
+    
+    # Create 5 columns for all KPIs in a single row
+    c1, c2, c3, c4, c5 = st.columns(5)
+    
     with c1:
-        st.metric("Spend", _fmt_currency(total_spend), delta=pct_delta(total_spend, spend_pp))
+        delta_str = pct_delta(total_spend, spend_pp)
+        delta_class = "kpi-delta-neutral"
+        if delta_str:
+            delta_class = "kpi-delta-negative" if "-" in delta_str else "kpi-delta-positive"
+            if "%" not in delta_str:
+                delta_str += "%"
+        
+        # Only show delta if date filter is applied (pp_start and pp_end are not None)
+        delta_html = f'<div class="kpi-delta {delta_class}">{delta_str}</div>' if pp_start is not None else ''
+        
+        st.markdown(f"""
+        <div class="kpi-card kpi-card-spend">
+            <div class="kpi-label">Spend</div>
+            <div class="kpi-value">{_fmt_currency(total_spend)}</div>
+            {delta_html}
+        </div>
+        """, unsafe_allow_html=True)
+        
     with c2:
-        st.metric("Total revenue", _fmt_currency(total_revenue), delta=pct_delta(total_revenue, rev_pp))
+        delta_str = pct_delta(total_revenue, rev_pp)
+        delta_class = "kpi-delta-neutral"
+        if delta_str:
+            delta_class = "kpi-delta-positive" if "-" not in delta_str else "kpi-delta-negative"
+            if "%" not in delta_str:
+                delta_str += "%"
+        
+        # Only show delta if date filter is applied (pp_start and pp_end are not None)
+        delta_html = f'<div class="kpi-delta {delta_class}">{delta_str}</div>' if pp_start is not None else ''
+        
+        st.markdown(f"""
+        <div class="kpi-card kpi-card-revenue">
+            <div class="kpi-label">Total Revenue</div>
+            <div class="kpi-value">{_fmt_currency(total_revenue)}</div>
+            {delta_html}
+        </div>
+        """, unsafe_allow_html=True)
+        
     with c3:
         if tg_mer:
             delta = mer - tg_mer
-            st.metric("MER", _fmt_float(mer), delta=f"{delta:+.2f}")
+            delta_str = f"{delta:+.2f}"
+            delta_class = "kpi-delta-positive" if delta > 0 else "kpi-delta-negative"
         else:
-            st.metric("MER", _fmt_float(mer), delta=pct_delta(mer, mer_pp))
+            delta_str = pct_delta(mer, mer_pp)
+            delta_class = "kpi-delta-neutral"
+            if delta_str:
+                delta_class = "kpi-delta-positive" if "-" not in delta_str else "kpi-delta-negative"
+                if "%" not in delta_str:
+                    delta_str += "%"
+        
+        # Only show delta if date filter is applied (pp_start and pp_end are not None) or if target is provided
+        show_delta = pp_start is not None or tg_mer is not None
+        delta_html = f'<div class="kpi-delta {delta_class}">{delta_str}</div>' if show_delta else ''
+        
+        st.markdown(f"""
+        <div class="kpi-card kpi-card-mer">
+            <div class="kpi-label">MER</div>
+            <div class="kpi-value">{_fmt_float(mer)}</div>
+            {delta_html}
+        </div>
+        """, unsafe_allow_html=True)
+        
     with c4:
         if tg_cac:
             delta = tg_cac - blended_cac  # lower CAC is better, so invert
-            st.metric("Blended CAC", _fmt_currency(blended_cac), delta=f"{delta:+.0f}", delta_color="inverse")
+            delta_str = f"{delta:+.0f}"
+            delta_class = "kpi-delta-positive" if delta > 0 else "kpi-delta-negative"
         else:
-            st.metric("Blended CAC", _fmt_currency(blended_cac), delta=pct_delta(blended_cac, cac_pp), delta_color="inverse")
-
-    # Second row: attributed ROAS vs target (if provided)
-    tg_roas = targets.get("roas")
-    if tg_roas:
-        c = st.columns(1)[0]
-        with c:
-            st.metric("Attributed ROAS", _fmt_float(attributed_roas), delta=f"{(attributed_roas - tg_roas):+.2f}")
-    else:
-        c = st.columns(1)[0]
-        with c:
-            st.metric("Attributed ROAS", _fmt_float(attributed_roas), delta=pct_delta(attributed_roas, roas_pp))
+            delta_str = pct_delta(blended_cac, cac_pp)
+            delta_class = "kpi-delta-neutral"
+            if delta_str:
+                # For CAC, negative is good (lower cost)
+                delta_class = "kpi-delta-positive" if "-" in delta_str else "kpi-delta-negative"
+                if "%" not in delta_str:
+                    delta_str += "%"
+        
+        # Only show delta if date filter is applied (pp_start and pp_end are not None) or if target is provided
+        show_delta = pp_start is not None or tg_cac is not None
+        delta_html = f'<div class="kpi-delta {delta_class}">{delta_str}</div>' if show_delta else ''
+        
+        st.markdown(f"""
+        <div class="kpi-card kpi-card-cac">
+            <div class="kpi-label">Blended CAC</div>
+            <div class="kpi-value">{_fmt_currency(blended_cac)}</div>
+            {delta_html}
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with c5:
+        if tg_roas:
+            delta = attributed_roas - tg_roas
+            delta_str = f"{delta:+.2f}"
+            delta_class = "kpi-delta-positive" if delta > 0 else "kpi-delta-negative"
+        else:
+            delta_str = pct_delta(attributed_roas, roas_pp)
+            delta_class = "kpi-delta-neutral"
+            if delta_str:
+                delta_class = "kpi-delta-positive" if "-" not in delta_str else "kpi-delta-negative"
+                if "%" not in delta_str:
+                    delta_str += "%"
+        
+        # Only show delta if date filter is applied (pp_start and pp_end are not None) or if target is provided
+        show_delta = pp_start is not None or tg_roas is not None
+        delta_html = f'<div class="kpi-delta {delta_class}">{delta_str}</div>' if show_delta else ''
+        
+        st.markdown(f"""
+        <div class="kpi-card kpi-card-roas">
+            <div class="kpi-label">Attributed ROAS</div>
+            <div class="kpi-value">{_fmt_float(attributed_roas)}</div>
+            {delta_html}
+        </div>
+        """, unsafe_allow_html=True)
 
     st.markdown("### Channel breakdown")
     if m_filtered.empty:
         st.warning("No data for selected filters.")
         return
+    
     channel_grp = m_filtered.groupby("channel", as_index=False).agg({
         "spend": "sum",
         "attributed_revenue": "sum",
@@ -157,6 +309,67 @@ def render(filters: dict, marketing_df: pd.DataFrame, business_df: pd.DataFrame,
     channel_grp["roas"] = channel_grp.apply(
         lambda r: (r["attributed_revenue"] / r["spend"]) if r["spend"] else 0.0, axis=1
     )
+    
+    # Create visual charts for channel metrics
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        # Spend by channel donut chart
+        spend_df = channel_grp.sort_values("spend", ascending=False).copy()
+        fig = px.pie(
+            spend_df, 
+            values="spend", 
+            names="channel", 
+            title="Spend Distribution by Channel",
+            color="channel",
+            color_discrete_map=CHANNEL_COLORS,
+            hole=0.4
+        )
+        fig.update_traces(textposition='inside', textinfo='percent+label')
+        fig.update_layout(
+            legend_title_text="Channel",
+            legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5)
+        )
+        st.plotly_chart(fig, use_container_width=True)
+    
+    with col2:
+        # ROAS by channel bar chart
+        roas_df = channel_grp.sort_values("roas", ascending=False).copy()
+        fig = px.bar(
+            roas_df,
+            x="channel",
+            y="roas",
+            title="Attributed ROAS by Channel",
+            color="channel",
+            color_discrete_map=CHANNEL_COLORS,
+            text_auto='.2f'
+        )
+        fig.update_traces(textposition='outside')
+        fig.update_layout(
+            xaxis_title="Channel",
+            yaxis_title="ROAS",
+            legend_title_text="Channel"
+        )
+        # Add target line if available
+        if tg_roas:
+            fig.add_shape(
+                type="line",
+                x0=-0.5,
+                x1=len(roas_df)-0.5,
+                y0=tg_roas,
+                y1=tg_roas,
+                line=dict(color="red", width=2, dash="dash")
+            )
+            fig.add_annotation(
+                x=len(roas_df)-0.5,
+                y=tg_roas,
+                text=f"Target: {tg_roas:.2f}",
+                showarrow=False,
+                yshift=10,
+                font=dict(color="red")
+            )
+        st.plotly_chart(fig, use_container_width=True)
+    
     # If ROAS target provided, add variance column for quick scan
     roas_target = targets.get("roas")
     if roas_target:
@@ -196,6 +409,8 @@ def render(filters: dict, marketing_df: pd.DataFrame, business_df: pd.DataFrame,
     if "ROAS Δ vs target" in display_df:
         display_df["ROAS Δ vs target"] = display_df["ROAS Δ vs target"].apply(lambda v: f"{v:+.2f}" if pd.notna(v) else "")
 
+    # Add detailed metrics table
+    st.markdown("### Detailed Channel Metrics")
     st.dataframe(
         display_df.rename(columns={
             "channel": "Channel",
@@ -207,23 +422,90 @@ def render(filters: dict, marketing_df: pd.DataFrame, business_df: pd.DataFrame,
         }),
         use_container_width=True,
     )
+    
+    # CTR & CPC comparison
+    st.markdown("### Channel Efficiency Metrics")
+    channel_metrics = m_filtered.groupby("channel", as_index=False).agg({
+        "impressions": "sum",
+        "clicks": "sum",
+        "spend": "sum"
+    })
+    channel_metrics["ctr"] = channel_metrics.apply(
+        lambda r: (r["clicks"] / r["impressions"]) * 100 if r["impressions"] else 0.0, axis=1
+    )
+    channel_metrics["cpc"] = channel_metrics.apply(
+        lambda r: (r["spend"] / r["clicks"]) if r["clicks"] else 0.0, axis=1
+    )
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        # CTR comparison
+        ctr_df = channel_metrics.sort_values("ctr", ascending=False).copy()
+        fig = px.bar(
+            ctr_df,
+            x="channel",
+            y="ctr",
+            title="Click-Through Rate by Channel",
+            color="channel",
+            color_discrete_map=CHANNEL_COLORS,
+            text_auto='.2f'
+        )
+        fig.update_traces(textposition='outside')
+        fig.update_layout(
+            xaxis_title="Channel",
+            yaxis_title="CTR (%)",
+            yaxis=dict(ticksuffix="%"),
+            legend_title_text="Channel"
+        )
+        st.plotly_chart(fig, use_container_width=True)
+    
+    with col2:
+        # CPC comparison
+        cpc_df = channel_metrics.sort_values("cpc", ascending=True).copy()  # Lower CPC is better
+        fig = px.bar(
+            cpc_df,
+            x="channel",
+            y="cpc",
+            title="Cost Per Click by Channel",
+            color="channel",
+            color_discrete_map=CHANNEL_COLORS,
+            text_auto='.2f'
+        )
+        fig.update_traces(textposition='outside')
+        fig.update_layout(
+            xaxis_title="Channel",
+            yaxis_title="CPC ($)",
+            yaxis=dict(tickprefix="$"),
+            legend_title_text="Channel"
+        )
+        st.plotly_chart(fig, use_container_width=True)
 
     with st.expander("Metrics & Interpretation", expanded=False):
         st.markdown('<style>.metrics-header {font-size: 18px !important; font-weight: 500 !important;}</style>', unsafe_allow_html=True)
-        st.write(
+        st.markdown(
             """
-            Metrics
-            - MER (Blended ROAS) = Total Revenue / Total Ad Spend
-            - Blended CAC = Total Ad Spend / New Customers
-            - AOV = Total Revenue / Orders
-            - Attributed ROAS = Attributed Revenue / Spend (per channel; from platform reporting)
-
-            How to interpret
-            - Use the filters to isolate channels, tactics, or states and a date window.
-            - KPIs show current totals; deltas compare to the immediately previous, same-length period.
-            - MER reflects overall return on ad spend from business revenue; Attributed ROAS comes from platform reporting.
-            - Blended CAC is inverted for color semantics (lower is better); look for downward movement.
-            - The Channel breakdown highlights where spend is concentrated and where efficiency (ROAS) is higher or lower.
+            ### Key Metrics
             
+            **KPI Cards**
+            - **Spend**: Total advertising expenditure across all channels
+            - **Total Revenue**: Gross revenue from all business activities
+            - **MER**: Total Revenue / Total Ad Spend
+            - **Blended CAC**: Total Ad Spend / New Customers
+            - **Attributed ROAS**: Platform-reported Revenue / Spend
+            
+            **Channel Metrics**
+            - **Spend Distribution**: Budget allocation across channels
+            - **Attributed ROAS**: Channel-specific conversion efficiency
+            - **CTR**: (Clicks / Impressions) × 100% - ad relevance indicator
+            - **CPC**: Spend / Clicks - traffic acquisition cost
+            
+            ### Quick Interpretation
+            - **KPI Cards**: Green = positive trend, Red = negative trend (for CAC, lower is better)
+            - **Delta Values**: Compare to previous equal-length period or target (if set)
+            - **Channel Charts**: Identify budget allocation and relative performance efficiency
+            - **Efficiency Metrics**: Higher CTR = better ad relevance; Lower CPC = more cost-efficient clicks
+            
+            **Tips**: Use filters to isolate channels or date ranges; set targets in sidebar for threshold evaluation; examine all metrics together for a complete performance picture.
             """
         )
