@@ -133,7 +133,6 @@ marketing-dashboard/
 │   ├── TikTok.csv        # TikTok marketing campaign data
 │   └── business.csv      # Business performance metrics
 ├── docs/                 # Documentation
-│   ├── plan.md           # Implementation strategy and technical approach
 │   └── screenshots/      # Dashboard visualization examples
 └── requirements.txt      # Dependency specification
 ```
