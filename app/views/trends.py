@@ -172,7 +172,8 @@ def render(filters: dict):
         if min_cac_row is not None:
             st.metric("Min blended CAC day", f"{min_cac_row['date'].date()}", help=f"${min_cac_row['blended_cac']:,.2f}")
 
-    with st.expander("Guide: metrics & interpretation"):
+    with st.expander("Metrics & Interpretation", expanded=False):
+        st.markdown('<style>.metrics-header {font-size: 18px !important; font-weight: 500 !important;}</style>', unsafe_allow_html=True)
         st.write(
             """
             - Spend vs Total Revenue shows the relationship between investment and top-line outcomes; consider enabling 7-day rolling averages for seasonality/noise.

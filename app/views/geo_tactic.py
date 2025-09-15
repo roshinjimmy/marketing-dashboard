@@ -128,7 +128,8 @@ def render(filters: dict):
     st.plotly_chart(fig, use_container_width=True)
     
 
-    with st.expander("Guide: metrics & interpretation"):
+    with st.expander("Metrics & Interpretation", expanded=False):
+        st.markdown('<style>.metrics-header {font-size: 18px !important; font-weight: 500 !important;}</style>', unsafe_allow_html=True)
         st.write(
             """
             - Use the state view to see geographic performance; bars help rank, the map helps spot regional clusters.

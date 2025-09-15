@@ -208,7 +208,8 @@ def render(filters: dict, marketing_df: pd.DataFrame, business_df: pd.DataFrame,
         use_container_width=True,
     )
 
-    with st.expander("Guide: metrics & interpretation"):
+    with st.expander("Metrics & Interpretation", expanded=False):
+        st.markdown('<style>.metrics-header {font-size: 18px !important; font-weight: 500 !important;}</style>', unsafe_allow_html=True)
         st.write(
             """
             Metrics

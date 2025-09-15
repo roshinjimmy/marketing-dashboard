@@ -116,7 +116,8 @@ def render(filters: dict):
         st.write("Bottom days")
         st.dataframe(day_tbl.sort_values("contribution_after_ads", ascending=True).head(top_n), use_container_width=True)
 
-    with st.expander("Guide: metrics & interpretation"):
+    with st.expander("Metrics & Interpretation", expanded=False):
+        st.markdown('<style>.metrics-header {font-size: 18px !important; font-weight: 500 !important;}</style>', unsafe_allow_html=True)
         st.write(
             """
             - Contribution after ads = Gross Profit − Ad Spend; this approximates contribution margin after marketing.

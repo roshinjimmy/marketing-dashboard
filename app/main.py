@@ -66,21 +66,32 @@ def _update_query_params(cur: dict):
 
 
 def sidebar_nav(marketing_df):
-    # Compact navigation header at the very top
+    # Navigation section with enhanced styling
     st.sidebar.markdown(
         """
-        <div class="oct-nav-header">
-          <span class="oct-nav-title">Navigation</span>
+        <div class="oct-section-header oct-nav-section">
+          <span class="oct-section-title">NAVIGATION</span>
         </div>
         """,
         unsafe_allow_html=True,
     )
     # Theme CSS is now injected globally in main()
     page = st.sidebar.radio("Go to", ["Executive Summary", "Drilldown", "Trends", "Profit", "Geo & Tactic", "Data Quality"], label_visibility="collapsed") 
-    # Filters
+    
+    # Clear divider between Navigation and Filters
+    st.sidebar.markdown('<div class="oct-section-divider"></div>', unsafe_allow_html=True)
+    
+    # Filters section with enhanced styling
     filters = {}
     filt_opts = data_mod.get_available_filters(marketing_df)
-    st.sidebar.markdown("### Filters")
+    st.sidebar.markdown(
+        """
+        <div class="oct-section-header oct-filter-section">
+          <span class="oct-section-title">FILTERS</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
     # Query params (if any)
     try:
         qp = st.query_params
@@ -96,6 +107,8 @@ def sidebar_nav(marketing_df):
     # Helper to render a simple checkbox group (no 'All' toggle)
     def checkbox_group(label: str, options: list[str], qp_default: list[str], group_key: str) -> list[str]:
         options = options or []
+        # Wrap each checkbox group in a container so we can style spacing tightly via CSS
+        st.sidebar.markdown('<div class="oct-filter-group">', unsafe_allow_html=True)
         st.sidebar.markdown(f"#### {label}")
         # Determine base selection: session -> query params -> all
         prev_sel = st.session_state.get(group_key)
@@ -108,6 +121,8 @@ def sidebar_nav(marketing_df):
                 selected.append(opt)
         # Persist group selection for reset/share and URL sync
         st.session_state[group_key] = selected
+        # Close the filter group wrapper
+        st.sidebar.markdown('</div>', unsafe_allow_html=True)
         return selected
 
     channels = checkbox_group(
@@ -116,20 +131,24 @@ def sidebar_nav(marketing_df):
         qp_default=qp_channels,
         group_key="filter_channels",
     )
-    st.sidebar.markdown('<div class="oct-divider"></div>', unsafe_allow_html=True)
+    st.sidebar.markdown('<div class="oct-filter-divider"></div>', unsafe_allow_html=True)
     tactics = checkbox_group(
         "Tactic",
         options=filt_opts.get("tactics", []),
         qp_default=qp_tactics,
         group_key="filter_tactics",
     )
-    st.sidebar.markdown('<div class="oct-divider"></div>', unsafe_allow_html=True)
+    st.sidebar.markdown('<div class="oct-filter-divider"></div>', unsafe_allow_html=True)
     states = checkbox_group(
         "State",
         options=filt_opts.get("states", []),
         qp_default=qp_states,
         group_key="filter_states",
     )
+    
+    # Add divider before date section
+    st.sidebar.markdown('<div class="oct-filter-divider"></div>', unsafe_allow_html=True)
+    
     # Default last 60 days if available
     min_date = marketing_df["date"].min() if not marketing_df.empty else None
     max_date = marketing_df["date"].max() if not marketing_df.empty else None
@@ -155,13 +174,16 @@ def sidebar_nav(marketing_df):
                 start_default = min_date
             default_range = [start_default.date(), max_date.date()]
     # If a value already exists in session_state (e.g., from a previous run or preset), prefer it
+    # Start date range group wrapper
+    st.sidebar.markdown('<div class="oct-date-range-group">', unsafe_allow_html=True)
+    
+    # Date range picker
+    st.sidebar.markdown('<div class="date-range-title"><h4>Date Range</h4></div>', unsafe_allow_html=True)
     date_value = st.session_state.get("filter_date_range", default_range)
-    date_range = st.sidebar.date_input("Date range", value=date_value, key="filter_date_range")
+    date_range = st.sidebar.date_input("Select date range", value=date_value, key="filter_date_range", label_visibility="collapsed")
 
     # Preset chips
     if pd.notna(pd.to_datetime(max_date)):
-        # Divider before quick ranges
-        st.sidebar.markdown('<div class="oct-divider"></div>', unsafe_allow_html=True)
         st.sidebar.markdown("#### Quick ranges")
         # Wrap quick range buttons in a container to target CSS without affecting other buttons
         st.sidebar.markdown('<div id="quick-ranges">', unsafe_allow_html=True)
@@ -186,6 +208,12 @@ def sidebar_nav(marketing_df):
             st.session_state["_pending_date_range"] = _date_preset_range(max_date, "YTD")
             st.rerun()
         st.sidebar.markdown('</div>', unsafe_allow_html=True)
+    
+    # Close the date range group wrapper
+    st.sidebar.markdown('</div>', unsafe_allow_html=True)
+    
+    # Add divider after date section
+    st.sidebar.markdown('<div class="oct-filter-divider"></div>', unsafe_allow_html=True)
 
     # (Removed) Table density toggle per request
     # Sync query params for shareable URLs
@@ -228,9 +256,11 @@ def sidebar_nav(marketing_df):
         st.code(qs, language="text")
 
     # Reset button at the very end (filled primary)
-    st.sidebar.markdown('<div class="oct-divider"></div>', unsafe_allow_html=True)
+    st.sidebar.markdown('<div class="oct-section-divider"></div>', unsafe_allow_html=True)
     st.sidebar.markdown('<div id="reset-filters">', unsafe_allow_html=True)
-    if st.sidebar.button("Reset filters"):
+    
+    # Use a unique key to ensure no conflicts
+    if st.sidebar.button("Reset Filters", key="custom_reset_filters", use_container_width=True):
         # Clear group selections and date
         for k in ["filter_channels", "filter_tactics", "filter_states", "filter_date_range"]:
             if k in st.session_state:
@@ -243,6 +273,37 @@ def sidebar_nav(marketing_df):
         for opt in (filt_opts.get("states", []) or []):
             st.session_state.pop(f"chk_filter_states_{opt}", None)
         st.rerun()
+    
+    # Add custom styling to override Streamlit's default button appearance
+    st.sidebar.markdown('''
+    <style>
+    /* Target specifically our reset button */
+    [data-testid="stSidebar"] [data-testid="baseButton-secondary"]:has(div:contains("Reset Filters")) {
+        background-color: #0066CC !important;
+        color: white !important;
+        border: none !important;
+        border-radius: 980px !important;
+        padding: 8px 18px !important;
+        font-weight: 500 !important;
+        font-size: 14px !important;
+        box-shadow: none !important;
+        width: 75% !important;
+        margin: 0 auto !important;
+        display: block !important;
+    }
+    
+    [data-testid="stSidebar"] [data-testid="baseButton-secondary"]:has(div:contains("Reset Filters")):hover {
+        background-color: #004DA6 !important;
+        opacity: 0.9;
+    }
+    
+    /* Ensure button text color is white */
+    [data-testid="stSidebar"] [data-testid="baseButton-secondary"]:has(div:contains("Reset Filters")) div {
+        color: white !important;
+    }
+    </style>
+    ''', unsafe_allow_html=True)
+    
     st.sidebar.markdown('</div>', unsafe_allow_html=True)
 
     filters.update({"channels": channels, "tactics": tactics, "states": states, "date_range": date_range, "targets": targets})
