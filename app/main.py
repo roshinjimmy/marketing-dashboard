@@ -5,7 +5,11 @@ import pandas as pd
 import data as data_mod
 from theme import apply_theme
 
-st.set_page_config(page_title="Marketing Intelligence Dashboard", layout="wide")
+st.set_page_config(
+    page_title="Marketing Intelligence Dashboard",
+    page_icon="📊",
+    layout="wide"
+)
 
 
 def _parse_csv_list(val):
